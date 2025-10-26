@@ -1,9 +1,9 @@
 #include <iostream>
 #include <vector>
-#include <cctype> // for toupper
-#include <conio.h> // for kbhit and getch (Windows)
-#include <windows.h> // for Sleep and GetTickCount
-#include <algorithm> // for remove_if
+#include <cctype> 
+#include <conio.h> 
+#include <windows.h> 
+#include <algorithm> 
 
 class Entity {
 public:
@@ -12,29 +12,29 @@ public:
 
     Entity(int startX, int startY, char sym) : x(startX), y(startY), symbol(sym) {}
 
-    virtual void update() = 0; // Pure virtual for polymorphism
-    virtual ~Entity() = default; // Virtual destructor for safe inheritance
+    virtual void update() = 0; //pure virtual for polymorphism
+    virtual ~Entity() = default; // virtual destructor for safe inheritance
 };
 
 class Player : public Entity {
 public:
-    float speed = 1.0f; 
+    float speed = 1.0f;
 
     Player(int startX, int startY) : Entity(startX, startY, '>') {}
 
     void update() override {
-        
+
     }
 
-    
+
     void move(char input, int screenWidth, int screenHeight) {
         int newX = x, newY = y;
 
         switch (std::toupper(input)) {
         case 'W': newY -= static_cast<int>(speed); break;      //player movement
-        case 'A': newX -= static_cast<int>(speed); break; 
-        case 'S': newY += static_cast<int>(speed); break; 
-        case 'D': newX += static_cast<int>(speed); break; 
+        case 'A': newX -= static_cast<int>(speed); break;
+        case 'S': newY += static_cast<int>(speed); break;
+        case 'D': newX += static_cast<int>(speed); break;
         default: return;        //no movement for invalid input
         }
 
@@ -53,21 +53,36 @@ public:
     }
 };
 
+class Asteroid : public Entity {
+public:
+    bool moveThisFrame = false; // Toggle to slow movement
+
+    Asteroid(int startX, int startY) : Entity(startX, startY, '@') {}
+
+    void update() override {
+        moveThisFrame = !moveThisFrame; // Alternate frames
+        if (moveThisFrame) {
+            x -= 1; //move asteroids left toward the player, slowed to every other frame
+        }
+    }
+};
+
 int main() {
     const int SCREEN_WIDTH = 35;      //terminal screen size
     const int SCREEN_HEIGHT = 10;
 
     Player player(SCREEN_WIDTH / 2, SCREEN_HEIGHT - 1); //start at center bottom
     std::vector<Bullet> bullets;
+    std::vector<Asteroid> asteroids;
     bool running = true;
 
     // shooting cooldown variables
     const int SHOOT_DELAY_MS = 500; // 500ms (0.5 seconds) delay between shots
-    DWORD lastShotTime = 0; 
+    DWORD lastShotTime = 0;
 
     while (running) {
         //clear terminal
-        std::system("cls"); 
+        std::system("cls");
 
         if (_kbhit()) {
             char input = _getch();
@@ -83,17 +98,52 @@ int main() {
                 }
             }
             else {
-                player.move(input, SCREEN_WIDTH, SCREEN_HEIGHT); 
+                player.move(input, SCREEN_WIDTH, SCREEN_HEIGHT);
             }
+        }
+
+        //spawn asteroids randomly
+        if (rand() % 10 == 0) { //random chance to spawn an asteroid, increased frequency
+            int startY = rand() % SCREEN_HEIGHT; //random y position
+            asteroids.emplace_back(SCREEN_WIDTH - 1, startY); //spawn at right edge
         }
 
         for (auto& bullet : bullets) {   //update bullets
             bullet.update();
         }
 
+        for (auto& asteroid : asteroids) {   //update asteroids
+            asteroid.update();
+        }
+
+        //check for bullet-asteroid collisions
+        for (auto itBullet = bullets.begin(); itBullet != bullets.end();) {
+            bool bulletHit = false;
+            for (auto itAsteroid = asteroids.begin(); itAsteroid != asteroids.end();) {
+                if (itBullet->x == itAsteroid->x && itBullet->y == itAsteroid->y) {
+                    itAsteroid = asteroids.erase(itAsteroid); //remove asteroid on hit
+                    bulletHit = true; //mark bullet for removal
+                    break;
+                }
+                else {
+                    ++itAsteroid;
+                }
+            }
+            if (bulletHit) {
+                itBullet = bullets.erase(itBullet); //remove bullet after hitting asteroid
+            }
+            else {
+                ++itBullet;
+            }
+        }
+
         bullets.erase(std::remove_if(bullets.begin(), bullets.end(), [SCREEN_WIDTH](const Bullet& b) {   //remove bullets that have left the screen 
             return b.x >= SCREEN_WIDTH;
             }), bullets.end());
+
+        asteroids.erase(std::remove_if(asteroids.begin(), asteroids.end(), [SCREEN_WIDTH](const Asteroid& a) {   //remove asteroids that have left the screen 
+            return a.x < 0;
+            }), asteroids.end());
 
         std::vector<std::string> screen(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, '.'));
         screen[player.y][player.x] = player.symbol;
@@ -104,12 +154,18 @@ int main() {
             }
         }
 
+        for (const auto& asteroid : asteroids) {      //draw asteroids
+            if (asteroid.x >= 0 && asteroid.x < SCREEN_WIDTH && asteroid.y >= 0 && asteroid.y < SCREEN_HEIGHT) {
+                screen[asteroid.y][asteroid.x] = asteroid.symbol;
+            }
+        }
+
         for (const auto& line : screen) {
             std::cout << line << '\n';
         }
 
         //frame delay to reduce flashing 
-        Sleep(150); 
+        Sleep(150);
     }
 
     std::cout << "Game ended!\n";
