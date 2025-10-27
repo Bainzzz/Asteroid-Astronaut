@@ -19,6 +19,7 @@ public:
 class Player : public Entity {
 public:
     float speed = 1.0f;
+    int lives = 3;  //gives player 3 lives 
 
     Player(int startX, int startY) : Entity(startX, startY, '>') {}
 
@@ -55,12 +56,12 @@ public:
 
 class Asteroid : public Entity {
 public:
-    bool moveThisFrame = false; // Toggle to slow movement
+    bool moveThisFrame = false; 
 
     Asteroid(int startX, int startY) : Entity(startX, startY, '@') {}
 
     void update() override {
-        moveThisFrame = !moveThisFrame; // Alternate frames
+        moveThisFrame = !moveThisFrame; //alternate frames
         if (moveThisFrame) {
             x -= 1; //move asteroids left toward the player, slowed to every other frame
         }
@@ -137,6 +138,17 @@ int main() {
             }
         }
 
+        for (auto asteroidCheck = asteroids.begin(); asteroidCheck != asteroids.end();) {
+            if (player.x == asteroidCheck->x && player.y == asteroidCheck->y) {
+                player.lives -= 1; //reduce player lives on hit
+                asteroidCheck = asteroids.erase(asteroidCheck);
+            }
+            else {
+                ++asteroidCheck;
+            }
+        }
+            
+
         bullets.erase(std::remove_if(bullets.begin(), bullets.end(), [SCREEN_WIDTH](const Bullet& b) {   //remove bullets that have left the screen 
             return b.x >= SCREEN_WIDTH;
             }), bullets.end());
@@ -144,6 +156,8 @@ int main() {
         asteroids.erase(std::remove_if(asteroids.begin(), asteroids.end(), [SCREEN_WIDTH](const Asteroid& a) {   //remove asteroids that have left the screen 
             return a.x < 0;
             }), asteroids.end());
+
+        std::cout << "Lives: " << player.lives << "\n";
 
         std::vector<std::string> screen(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, '.'));
         screen[player.y][player.x] = player.symbol;
@@ -162,6 +176,10 @@ int main() {
 
         for (const auto& line : screen) {
             std::cout << line << '\n';
+        }
+
+        if (player.lives <= 0) {
+            running = false; //endg game at 0 lives 
         }
 
         //frame delay to reduce flashing 
