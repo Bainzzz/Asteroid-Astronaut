@@ -4,6 +4,8 @@
 #include <conio.h> 
 #include <windows.h> 
 #include <algorithm> 
+#include <iomanip>
+#include <fstream>
 
 class Entity {
 public:
@@ -63,10 +65,30 @@ public:
     void update() override {
         moveThisFrame = !moveThisFrame; //alternate frames
         if (moveThisFrame) {
-            x -= 1; //move asteroids left toward the player, slowed to every other frame
+            x -= 1; //move asteroids left toward the player
         }
     }
 };
+
+void loadHighScores(std::vector<int>& highScores) {         //loads high scores from file
+    std::ifstream inFile("highscores.txt");
+    highScores.assign(5, 0);         //reset to 0 in case file is missing or incomplete
+    if (inFile.is_open()) {
+        for (int i = 0; i < 5 && inFile >> highScores[i]; ++i) {}
+        inFile.close();
+    }
+}
+
+void saveHighScores(const std::vector<int>& highScores) {       //saves high scores to file
+    std::ofstream outFile("highscores.txt");
+    if (outFile.is_open()) {
+        for (int i = 0; i < 5; ++i) {
+            outFile << highScores[i];
+            if (i < 4) outFile << " ";
+        }
+        outFile.close();
+    }
+}
 
 int main() {
     const int SCREEN_WIDTH = 35;      //terminal screen size
@@ -76,6 +98,10 @@ int main() {
     std::vector<Bullet> bullets;
     std::vector<Asteroid> asteroids;
     bool running = true;
+    int score = 0; //player score 0
+    std::vector<int> highScores(5, 0);
+    loadHighScores(highScores);    //loads high scores at start 
+
 
     // shooting cooldown variables
     const int SHOOT_DELAY_MS = 500; // 500ms (0.5 seconds) delay between shots
@@ -124,6 +150,7 @@ int main() {
                 if (itBullet->x == itAsteroid->x && itBullet->y == itAsteroid->y) {
                     itAsteroid = asteroids.erase(itAsteroid); //remove asteroid on hit
                     bulletHit = true; //mark bullet for removal
+                    score += 10;  //increase score 
                     break;
                 }
                 else {
@@ -157,7 +184,15 @@ int main() {
             return a.x < 0;
             }), asteroids.end());
 
-        std::cout << "Lives: " << player.lives << "\n";
+        std::cout << "Lives: " << player.lives;  //displays lives
+        std::cout << std::setw(SCREEN_WIDTH - 10) << std::right << "Score: " << score << "\n";  //displays score
+
+        std::cout << "High Scores: ";
+        for (int i = 0; i < 5; ++i) {
+            std::cout << highScores[i];
+            if (i < 4) std::cout << ", ";
+        }
+        std::cout << "\n";
 
         std::vector<std::string> screen(SCREEN_HEIGHT, std::string(SCREEN_WIDTH, '.'));
         screen[player.y][player.x] = player.symbol;
@@ -184,6 +219,15 @@ int main() {
 
         //frame delay to reduce flashing 
         Sleep(150);
+    }
+
+    if (score > *std::min_element(highScores.begin(), highScores.end())) {
+        if (std::find(highScores.begin(), highScores.end(), score) == highScores.end()) {
+            highScores.push_back(score);
+            std::sort(highScores.begin(), highScores.end(), std::greater<int>());
+            highScores.resize(5);
+            saveHighScores(highScores); //saves updated high scores
+        }
     }
 
     std::cout << "Game ended!\n";
